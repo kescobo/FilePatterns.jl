@@ -29,9 +29,22 @@ function _match(regex::Regex, entries, ::Val{names}) where {names}
     return sort!(matches; by = m -> (m.directory, m.filename))
 end
 
+_reject_duplicates(matches, ::Tuple{}, pattern, dir) = nothing
+
+function _reject_duplicates(matches, captures, pattern, dir)
+    paths = Dict{NamedTuple{captures, NTuple{length(captures), String}}, Vector{String}}()
+    for m in matches
+        push!(get!(Vector{String}, paths, NamedTuple{captures}(m)), joinpath(m.directory, m.filename))
+    end
+    duplicates = [entry for entry in paths if length(last(entry)) > 1]
+    isempty(duplicates) && return nothing
+    throw(DuplicateMatchesError(sort!(duplicates), pattern, String(dir)))
+end
+
 """
     filesearch(pattern::Union{Regex, Pattern}, dir::AbstractString = ".";
-               recursive = false, strict = true, select = nothing, require = nothing)
+               recursive = false, strict = true, distinct = true,
+               select = nothing, require = nothing)
 
 Find the files in `dir` whose names match `pattern` and return one `NamedTuple`
 per file, sorted by `(directory, filename)`.
@@ -55,6 +68,10 @@ The result is a Tables.jl row table, so `DataFrame(filesearch(...))` works.
   followed. Symlinks to files are matched; broken symlinks are skipped.
 - `strict`: when `true`, `pattern` must match the whole file name. When `false`,
   a match anywhere in the name is enough.
+- `distinct`: when `true`, throw [`DuplicateMatchesError`](@ref) if two or more
+  files have the same values for every named capture, wherever they are. When
+  `false`, return every match and leave telling them apart to the caller.
+  Patterns without named captures are never checked.
 - `select`: keep only matches whose captures take one of the given value
   combinations.
 - `require`: throw [`MissingMatchesError`](@ref) unless every expected value
@@ -79,13 +96,17 @@ unconstrained.
 combination of the captures *not* named in the spec. With captures `sample` and
 `R`, `require = (R = 1:2,)` fails if some sample has an `R = "1"` file but no
 `R = "2"` file. When nothing matches, every expected combination is missing.
-`select` is applied before `require`.
+
+`select` is applied first, then the `distinct` check, then `require`, so files
+removed by `select` cannot count as duplicates.
 
 # Errors
 
 - `ArgumentError` if `dir` is not an existing directory, if `pattern` has a
   capture named `filename` or `directory`, or if a `select` or `require` key is
   not a capture name.
+- [`DuplicateMatchesError`](@ref) if `distinct` is `true` and files share all
+  capture values.
 - [`MissingMatchesError`](@ref) if `require` is not satisfied.
 
 # Examples
@@ -103,7 +124,8 @@ julia> filesearch(pat, "fastqs"; recursive = true, require = (sample = ["A0001",
 """
 function filesearch(
         pattern::Union{Regex, Pattern}, dir::AbstractString = ".";
-        recursive::Bool = false, strict::Bool = true, select = nothing, require = nothing,
+        recursive::Bool = false, strict::Bool = true, distinct::Bool = true,
+        select = nothing, require = nothing,
     )
     isdir(dir) || throw(ArgumentError("`dir` must be an existing directory, got $(repr(dir))"))
     regex = _regex(pattern)
@@ -112,5 +134,6 @@ function filesearch(
     requirement = _spec(require, names)
     matches = _match(strict ? _anchor(regex) : regex, _walk(dir; recursive), Val(names))
     _select!(matches, selection)
+    distinct && _reject_duplicates(matches, names, pattern, dir)
     return _require(matches, requirement, names, pattern, dir)
 end

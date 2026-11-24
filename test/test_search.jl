@@ -13,9 +13,59 @@ end
 @testset "strict matching" begin
     dir = fixture(["xA0001_L001_R1.fastq.gz", "A0001_L001_R1.fastq.gz.bak"])
     @test isempty(filesearch(FASTQ, dir))
-    @test length(filesearch(FASTQ, dir; strict = false)) == 2
+    @test length(filesearch(FASTQ, dir; strict = false, distinct = false)) == 2
     @test only(filesearch(r"(?<n>1|12)", fixture(["12"]))).n == "12"
     @test only(filesearch(r"(?<n>1|12)", fixture(["12"]); strict = false)).n == "1"
+end
+
+const SAMPLES = r"(?<sample>s\d+)_R(?<R>\d)"
+
+@testset "distinct" begin
+    @testset "non-strict duplicates" begin
+        dir = fixture(["sample1_R1.fastq.gz", "mod_sample1_R1.fastq.gz", "sample1_R2.fastq.gz"])
+        pattern = r"(?<sample>sample\d+)_R(?<R>\d)"
+        err = @test_throws DuplicateMatchesError filesearch(pattern, dir; strict = false)
+        @test err.value.duplicates == [
+            (sample = "sample1", R = "1") => [joinpath(dir, "mod_sample1_R1.fastq.gz"), joinpath(dir, "sample1_R1.fastq.gz")],
+        ]
+        message = sprint(showerror, err.value)
+        @test occursin("1 combination of capture values matches more than one file", message)
+        @test occursin(joinpath(dir, "mod_sample1_R1.fastq.gz"), message)
+        @test occursin("Pass `distinct = false`", message)
+        @test length(filesearch(pattern, dir; strict = false, distinct = false)) == 3
+    end
+
+    @testset "uncaptured text differs" begin
+        dir = fixture(["s1_L001_R1", "s1_R1", "s2_R1"])
+        pattern = r"(?<sample>s\d)(?:_L\d+)?_R(?<R>\d)"
+        err = @test_throws DuplicateMatchesError filesearch(pattern, dir)
+        @test only(err.value.duplicates) == ((sample = "s1", R = "1") => [joinpath(dir, "s1_L001_R1"), joinpath(dir, "s1_R1")])
+    end
+
+    @testset "same name in different directories" begin
+        dir = fixture(["a/s1_R1", "b/s1_R1", "b/s2_R1"])
+        @test length(filesearch(SAMPLES, dir; recursive = true, select = (sample = "s2",))) == 1
+        err = @test_throws DuplicateMatchesError filesearch(SAMPLES, dir; recursive = true)
+        @test only(err.value.duplicates) == ((sample = "s1", R = "1") => [joinpath(dir, "a", "s1_R1"), joinpath(dir, "b", "s1_R1")])
+        @test length(filesearch(SAMPLES, dir; recursive = true, distinct = false)) == 3
+    end
+
+    @testset "duplicates are sorted and truncated" begin
+        names = ["$(prefix)s$(i)_R1" for prefix in ("", "x") for i in 1:22]
+        err = @test_throws DuplicateMatchesError filesearch(SAMPLES, fixture(names); strict = false)
+        @test [first(entry).sample for entry in err.value.duplicates] == sort(["s$i" for i in 1:22])
+        @test occursin("… and 2 more", sprint(showerror, err.value))
+    end
+
+    @testset "patterns without named captures are not checked" begin
+        @test length(filesearch(r"s\d_R1", fixture(["a/s1_R1", "b/s1_R1"]); recursive = true)) == 2
+    end
+
+    @testset "distinct runs before require" begin
+        dir = fixture(["s1_R1", "xs1_R1"])
+        @test_throws DuplicateMatchesError filesearch(SAMPLES, dir; strict = false, require = (R = 1:2,))
+        @test_throws MissingMatchesError filesearch(SAMPLES, dir; strict = false, distinct = false, require = (R = 1:2,))
+    end
 end
 
 @testset "capture fields" begin

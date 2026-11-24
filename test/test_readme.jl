@@ -12,6 +12,9 @@ root = fixture(
         "reads/S1_R1.fastq.gz",
         "reads/S1_R2.fastq.gz",
         "reads/S2_R1.fastq.gz",
+        "mixed/S1_L001_R1.fastq.gz",
+        "mixed/S1_R1.fastq.gz",
+        "mixed/S1_R2.fastq.gz",
     ],
 )
 
@@ -56,6 +59,21 @@ cd(root) do
     @testset "recursion" begin
         @test [joinpath(m.directory, m.filename) for m in filesearch(r"(?<run>run\d+)\.csv", "runs"; recursive = true)] ==
             [joinpath("runs", "2024", "run1.csv"), joinpath("runs", "2025", "run2.csv")]
+    end
+
+    @testset "distinct" begin
+        mixed = r"(?<sample>S\d+)(?:_L\d+)?_R(?<R>\d)\.fastq\.gz"
+        err = @test_throws DuplicateMatchesError filesearch(mixed, "mixed")
+        paths = [joinpath("mixed", "S1_L001_R1.fastq.gz"), joinpath("mixed", "S1_R1.fastq.gz")]
+        @test sprint(showerror, err.value) == """
+            DuplicateMatchesError: 1 combination of capture values matches more than one file in "mixed" for pattern r"(?<sample>S\\d+)(?:_L\\d+)?_R(?<R>\\d)\\.fastq\\.gz":
+              (sample = "S1", R = "1")
+                $(paths[1])
+                $(paths[2])
+            Pass `distinct = false` to return every match; telling duplicates apart is then up to the caller."""
+        @test err.value.duplicates == [(sample = "S1", R = "1") => paths]
+        @test eltype(err.value.duplicates) == Pair{@NamedTuple{sample::String, R::String}, Vector{String}}
+        @test length(filesearch(mixed, "mixed"; distinct = false)) == 3
     end
 
     @testset "select" begin

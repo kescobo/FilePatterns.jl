@@ -13,5 +13,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and one `String` field per named capture.
 - `Pattern` templates with `<name>` captures and per-capture regexes.
 - `strict` and `recursive` options.
+- `distinct` option, on by default, throwing `DuplicateMatchesError` when two or
+  more files share the values of every named capture.
 - `select` and `require` options taking a Cartesian-product spec or a Tables.jl
   table, with `MissingMatchesError` for unmet requirements.

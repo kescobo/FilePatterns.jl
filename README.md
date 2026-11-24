@@ -120,6 +120,29 @@ julia> [joinpath(m.directory, m.filename) for m in filesearch(r"(?<run>run\d+)\.
  "runs/2025/run2.csv"
 ```
 
+### Duplicate matches: `distinct`
+
+Two files can produce the same capture values when the pattern skips some of
+the text, matches only part of a name (`strict = false`), or finds the same
+name in several directories (`recursive = true`). By default `filesearch`
+throws a `DuplicateMatchesError` when that happens, wherever the files are,
+because a sample sheet with two files for one sample is usually a mistake.
+Given `mixed` containing `S1_L001_R1.fastq.gz`, `S1_R1.fastq.gz` and
+`S1_R2.fastq.gz`:
+
+```julia
+julia> filesearch(r"(?<sample>S\d+)(?:_L\d+)?_R(?<R>\d)\.fastq\.gz", "mixed")
+ERROR: DuplicateMatchesError: 1 combination of capture values matches more than one file in "mixed" for pattern r"(?<sample>S\d+)(?:_L\d+)?_R(?<R>\d)\.fastq\.gz":
+  (sample = "S1", R = "1")
+    mixed/S1_L001_R1.fastq.gz
+    mixed/S1_R1.fastq.gz
+Pass `distinct = false` to return every match; telling duplicates apart is then up to the caller.
+```
+
+With `distinct = false`, every match is returned and handling the duplicates
+is up to you. Only named captures are compared. Patterns without named
+captures are never checked.
+
 ### Selecting matches: `select`
 
 `select` keeps only the matches whose captures take one of the allowed value
@@ -169,7 +192,7 @@ ERROR: MissingMatchesError: 1 expected combination has no matching file in "read
 ```
 
 An empty search never passes: with no matches, every expected combination is
-missing. When both options are given, `select` is applied first.
+missing. `select` is applied first, then the `distinct` check, then `require`.
 
 ### With DataFrames
 
@@ -196,7 +219,8 @@ sample sheet listing the files you expect.
 
 ```julia
 filesearch(pattern::Union{Regex, Pattern}, dir::AbstractString = ".";
-           recursive = false, strict = true, select = nothing, require = nothing)
+           recursive = false, strict = true, distinct = true,
+           select = nothing, require = nothing)
 ```
 
 Returns a `Vector` of `NamedTuple`s sorted by `(directory, filename)`, with
@@ -209,6 +233,7 @@ type is concrete even when nothing matches.
 | `dir` | Directory to search. |
 | `recursive` | Also search subdirectories (symlinked directories are not followed). |
 | `strict` | Require a match of the whole file name. |
+| `distinct` | Throw `DuplicateMatchesError` if files share all named capture values. |
 | `select` | Keep only the given capture value combinations. |
 | `require` | Throw `MissingMatchesError` unless every given combination is matched. |
 
@@ -250,6 +275,26 @@ julia> err = try
 julia> err.missing
 1-element Vector{@NamedTuple{sample::String, R::String}}:
  (sample = "S2", R = "2")
+```
+
+### `DuplicateMatchesError`
+
+Thrown by `filesearch` when `distinct = true` (the default) and two or more
+files have the same values for every named capture. Its `duplicates` field maps
+each shared combination of capture values to the paths of its files, sorted by
+the capture values. The `pattern` and `directory` fields record what was
+searched.
+
+```julia
+julia> err = try
+           filesearch(r"(?<sample>S\d+)(?:_L\d+)?_R(?<R>\d)\.fastq\.gz", "mixed")
+       catch e
+           e
+       end;
+
+julia> err.duplicates
+1-element Vector{Pair{@NamedTuple{sample::String, R::String}, Vector{String}}}:
+ (sample = "S1", R = "1") => ["mixed/S1_L001_R1.fastq.gz", "mixed/S1_R1.fastq.gz"]
 ```
 
 ## Gotchas

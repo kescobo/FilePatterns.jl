@@ -32,15 +32,65 @@ struct MissingMatchesError{T <: NamedTuple, P <: Union{Regex, Pattern}} <: Excep
     directory::String
 end
 
-const SHOWN_MISSING = 20
+const SHOWN = 20
 
 function Base.showerror(io::IO, err::MissingMatchesError)
     n = length(err.missing)
     print(io, "MissingMatchesError: ", n, n == 1 ? " expected combination has" : " expected combinations have")
     print(io, " no matching file in ", repr(err.directory), " for pattern ", err.pattern, ":")
-    for entry in first(err.missing, SHOWN_MISSING)
+    for entry in first(err.missing, SHOWN)
         print(io, "\n  ", entry)
     end
-    n > SHOWN_MISSING && print(io, "\n  … and ", n - SHOWN_MISSING, " more")
+    n > SHOWN && print(io, "\n  … and ", n - SHOWN, " more")
+    return nothing
+end
+
+"""
+    DuplicateMatchesError <: Exception
+
+Thrown by [`filesearch`](@ref) when two or more matched files have the same
+values for every named capture, for example `sample1_R1.fastq.gz` and
+`mod_sample1_R1.fastq.gz` with `strict = false`, or files with the same name in
+different directories with `recursive = true`. Pass `distinct = false` to
+`filesearch` to return every match instead.
+
+# Fields
+
+- `duplicates::Vector{<:Pair{<:NamedTuple, Vector{String}}}`: one entry per
+  shared combination of capture values, mapping it to the paths of the files
+  that have it, sorted by the capture values.
+- `pattern::Union{Regex, Pattern}`: the pattern that was searched for.
+- `directory::String`: the directory that was searched.
+
+# Examples
+
+```julia
+julia> try
+           filesearch(r"(?<sample>sample\\d+)_R(?<R>\\d)", "reads"; strict = false)
+       catch err
+           err.duplicates
+       end
+1-element Vector{Pair{@NamedTuple{sample::String, R::String}, Vector{String}}}:
+ (sample = "sample1", R = "1") => ["reads/mod_sample1_R1.fastq.gz", "reads/sample1_R1.fastq.gz"]
+```
+"""
+struct DuplicateMatchesError{T <: NamedTuple, P <: Union{Regex, Pattern}} <: Exception
+    duplicates::Vector{Pair{T, Vector{String}}}
+    pattern::P
+    directory::String
+end
+
+function Base.showerror(io::IO, err::DuplicateMatchesError)
+    n = length(err.duplicates)
+    print(io, "DuplicateMatchesError: ", n, n == 1 ? " combination of capture values matches" : " combinations of capture values match")
+    print(io, " more than one file in ", repr(err.directory), " for pattern ", err.pattern, ":")
+    for (captures, paths) in first(err.duplicates, SHOWN)
+        print(io, "\n  ", captures)
+        for path in paths
+            print(io, "\n    ", path)
+        end
+    end
+    n > SHOWN && print(io, "\n  … and ", n - SHOWN, " more")
+    print(io, "\nPass `distinct = false` to return every match; telling duplicates apart is then up to the caller.")
     return nothing
 end
