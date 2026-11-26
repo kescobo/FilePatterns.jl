@@ -111,15 +111,19 @@ removed by `select` cannot count as duplicates.
 
 # Examples
 
-```julia
-julia> filesearch(r"(?<sample>[A-Z0-9]+)_L001_R(?<R>1|2)\\.fastq\\.gz", "fastqs")
+With a directory `fastqs` holding `R1` and `R2` files for samples `A0001` and
+`A0002`:
+
+```jldoctest
+julia> filesearch(r"(?<sample>[A-Z0-9]+)_L001_R(?<R>1|2)\\.fastq\\.gz", "fastqs"; select = (sample = "A0001",))
 2-element Vector{@NamedTuple{filename::String, directory::String, sample::String, R::String}}:
  (filename = "A0001_L001_R1.fastq.gz", directory = "fastqs", sample = "A0001", R = "1")
  (filename = "A0001_L001_R2.fastq.gz", directory = "fastqs", sample = "A0001", R = "2")
 
 julia> pat = Pattern("<sample>_L001_R<R>.fastq.gz"; R = r"1|2");
 
-julia> filesearch(pat, "fastqs"; recursive = true, require = (sample = ["A0001", "A0002"], R = [1, 2]))
+julia> length(filesearch(pat, "fastqs"; require = (sample = ["A0001", "A0002"], R = [1, 2])))
+4
 ```
 """
 function filesearch(

@@ -15,15 +15,19 @@ of capture values that no matched file provides.
 
 # Examples
 
-```julia
-julia> try
-           filesearch(r"(?<sample>\\w+)_R(?<R>\\d)", "reads"; require = (R = 1:2,))
-       catch err
-           err.missing
-       end
-2-element Vector{@NamedTuple{sample::String, R::String}}:
- (sample = "sample1", R = "2")
- (sample = "sample5", R = "1")
+With a directory `reads` holding `S1_R1.fastq.gz`, `S1_R2.fastq.gz` and
+`S2_R1.fastq.gz`:
+
+```jldoctest
+julia> err = try
+           filesearch(r"(?<sample>\\w+)_R(?<R>\\d)\\.fastq\\.gz", "reads"; require = (R = 1:2,))
+       catch e
+           e
+       end;
+
+julia> err.missing
+1-element Vector{@NamedTuple{sample::String, R::String}}:
+ (sample = "S2", R = "2")
 ```
 """
 struct MissingMatchesError{T <: NamedTuple, P <: Union{Regex, Pattern}} <: Exception
@@ -64,14 +68,19 @@ different directories with `recursive = true`. Pass `distinct = false` to
 
 # Examples
 
-```julia
-julia> try
-           filesearch(r"(?<sample>sample\\d+)_R(?<R>\\d)", "reads"; strict = false)
-       catch err
-           err.duplicates
-       end
+With a directory `mixed` holding `S1_L001_R1.fastq.gz`, `S1_R1.fastq.gz` and
+`S1_R2.fastq.gz`:
+
+```jldoctest
+julia> err = try
+           filesearch(r"(?<sample>S\\d+)(?:_L\\d+)?_R(?<R>\\d)\\.fastq\\.gz", "mixed")
+       catch e
+           e
+       end;
+
+julia> err.duplicates
 1-element Vector{Pair{@NamedTuple{sample::String, R::String}, Vector{String}}}:
- (sample = "sample1", R = "1") => ["reads/mod_sample1_R1.fastq.gz", "reads/sample1_R1.fastq.gz"]
+ (sample = "S1", R = "1") => ["mixed/S1_L001_R1.fastq.gz", "mixed/S1_R1.fastq.gz"]
 ```
 """
 struct DuplicateMatchesError{T <: NamedTuple, P <: Union{Regex, Pattern}} <: Exception

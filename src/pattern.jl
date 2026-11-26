@@ -55,11 +55,15 @@ character position of the problem.
 
 # Examples
 
-```julia
+```jldoctest
 julia> pat = Pattern("<sample>_L001_R<R>.fastq.gz"; R = r"1|2")
 Pattern("<sample>_L001_R<R>.fastq.gz"; R = r"1|2")
 
-julia> filesearch(pat, "fastqs")
+julia> pat.regex
+r"(?<sample>[^/]+?)_L001_R(?<R>1|2)\\.fastq\\.gz"
+
+julia> first(filesearch(pat, "fastqs"))
+(filename = "A0001_L001_R1.fastq.gz", directory = "fastqs", sample = "A0001", R = "1")
 ```
 """
 struct Pattern

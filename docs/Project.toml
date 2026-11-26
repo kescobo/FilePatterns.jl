@@ -1,0 +1,11 @@
+[deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+FilePatterns = "ba17a729-551e-4f5c-92d7-72b1e0021c62"
+
+[sources]
+FilePatterns = {path = ".."}
+
+[compat]
+DataFrames = "1"
+Documenter = "1"

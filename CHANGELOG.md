@@ -17,3 +17,4 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   more files share the values of every named capture.
 - `select` and `require` options taking a Cartesian-product spec or a Tables.jl
   table, with `MissingMatchesError` for unmet requirements.
+- Documenter.jl documentation with a manual and doctested examples.
