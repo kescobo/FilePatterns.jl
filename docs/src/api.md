@@ -1,6 +1,7 @@
 # API
 
 ```@docs
+FilePatterns
 filesearch
 Pattern
 MissingMatchesError
