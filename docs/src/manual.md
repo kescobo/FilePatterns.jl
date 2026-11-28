@@ -1,11 +1,11 @@
 # Manual
 
 ```@meta
-DocTestSetup = DOCTEST_SETUP
-DocTestTeardown = DOCTEST_TEARDOWN
+DocTestSetup = :(using FilePatterns)
 ```
 
-The examples on this page search these directories:
+The examples on this page search these directories, which are in the
+package's `docs/` folder:
 
 ```
 fastqs/  A0001_L001_R1.fastq.gz  A0001_L001_R2.fastq.gz

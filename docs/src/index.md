@@ -29,11 +29,6 @@ A0002_L001_R2.fastq.gz
 README.txt
 ```
 
-```@meta
-DocTestSetup = DOCTEST_SETUP
-DocTestTeardown = DOCTEST_TEARDOWN
-```
-
 ```jldoctest quickstart
 julia> using FilePatterns
 
